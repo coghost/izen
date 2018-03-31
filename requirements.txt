@@ -1,0 +1,9 @@
+click
+clint
+logzero
+profig
+psutil
+pycrypto
+hot-redis
+paho-mqtt
+wcwidth
