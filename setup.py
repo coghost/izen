@@ -4,30 +4,34 @@ __author__ = 'lihe <imanux@sina.com>'
 __date__ = '6/2/16 2:55 PM'
 __description__ = '''
 安装:
-sudo -H python setup.py install
-sudo -H python setup.py install --record izen_install.log
+1. sudo -H pip install izen
+2. sudo -H python setup.py install --record izen_install.log
 
 删除方式:
-sudo -H pip uninstall izen
-cat izen_install.log | xargs sudo rm -rf
+1. sudo -H pip uninstall izen
+2. cat izen_install.log | xargs sudo rm -rf
 
 '''
 
 from setuptools import setup, find_packages
-import izen
+
+VERSION = '0.1.20180402'
 
 setup(
     name='izen',
-    version=izen.VERSION,
+    version=VERSION,
     packages=find_packages(),
     include_package_data=True,
     package_data={'': ['*.tpl', '*.md']},
     author='lihe',
     author_email='imanux@sina.com',
-    url=' ',
-    license='MIT',
+    url='https://github.com/coghost/izen',
+    description='encapsulation of some useful features',
+    long_description=open('README.md').read(),
+    license='GPL',
     classifiers=[
-        "Programming Language :: Python",
+        "Programming Language :: Python3.5",
+        "Programming Language :: Python3.6",
         "License :: OSI Approved :: BSD License"
     ],
     install_requires=[
@@ -41,5 +45,4 @@ setup(
         'paho-mqtt',
         'wcwidth',
     ],
-    description='encapsulation of some useful feature',
 )

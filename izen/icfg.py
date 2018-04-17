@@ -11,7 +11,10 @@ __description__ = '''
 
 import os
 import sys
+import logging
+
 import profig
+import logzero
 
 app_root = '/'.join(os.path.abspath(__file__).split('/')[:-2])
 sys.path.append(app_root)
@@ -93,3 +96,39 @@ class Conf(object):
             else:
                 self.cfg.init(k, v)
         self.cfg.sync()
+
+
+class LFormatter(logzero.LogFormatter):
+    """ 改写 logzero 的 LogFormatter
+
+    - 移除 ``[]``, 支持自定义前导字符(任意长度, 但只取前5个字符),
+    - 增加 ``critical`` 的颜色实现
+
+    """
+    DEFAULT_FORMAT = '%(color)s {}%(levelname)1.1s %(asctime)s ' \
+                     '%(module)s:%(lineno)d {}%(end_color)s %(' \
+                     'message)s'
+    DEFAULT_DATE_FORMAT = '%y%m%d %H:%M:%S'
+    DEFAULT_COLORS = {
+        logging.DEBUG: logzero.ForegroundColors.CYAN,
+        logging.INFO: logzero.ForegroundColors.GREEN,
+        logging.WARNING: logzero.ForegroundColors.YELLOW,
+        logging.ERROR: logzero.ForegroundColors.RED,
+        logging.CRITICAL: logzero.ForegroundColors.MAGENTA,
+    }
+
+    def __init__(self, log_pre='♨✔⊙✘◈'):
+        logzero.LogFormatter.__init__(self,
+                                      datefmt=self.DEFAULT_DATE_FORMAT,
+                                      colors=self.DEFAULT_COLORS
+                                      )
+        blank__ = '➵' * 5
+        log_pre += blank__[len(log_pre):]  # 如果无, 或者长度小于5, 则使用 blank_ 自动补全5个字符
+        self.CHAR_PRE = dict(zip(range(5), log_pre))
+
+    def format(self, record):
+        _char_pre = self.CHAR_PRE[record.levelno / 10 - 1] + ' '
+        __fmt = self.DEFAULT_FORMAT
+        __fmt = __fmt.format(_char_pre, '|')
+        self._fmt = __fmt
+        return logzero.LogFormatter.format(self, record)

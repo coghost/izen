@@ -1,6 +1,14 @@
 izen change log
 ===============
 
+v1.0.20180402
+-------------
+- `setup.py`
+    + 版本直接放置于 `setup.py` 中实现
+    + 修改 `license=GPL`
+    + 增加详细描述`README.md`
+- `icfg.py` 增加覆盖logger的`Formatter`样式
+
 v1.0.20180301
 -------------
 - `dec.catch` 增加 `traceback.print_exc()` 打印详细错误日志
