@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+click = "*"
+clint = "*"
+logzero = "*"
+profig = "*"
+psutil = "*"
+pycrypto = "*"
+hot-redis = "*"
+paho-mqtt = "*"
+wcwidth = "*"
+requests = "*"
+tqdm = "*"
+numpy = "*"
+selenium = "*"
+"bs4" = "*"
+
+[dev-packages]
+rope = "*"
+
+[requires]
+python_version = "3.7"

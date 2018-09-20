@@ -15,7 +15,7 @@ __description__ = '''
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1.20180402'
+VERSION = '0.1.20180404'
 
 setup(
     name='izen',
@@ -35,14 +35,19 @@ setup(
         "License :: OSI Approved :: BSD License"
     ],
     install_requires=[
+        'bs4',
         'click',
         'clint',
+        'hot',
         'logzero',
+        'numpy',
+        'paho-mqtt',
         'profig',
         'psutil',
         'pycrypto',
-        'hot-redis',
-        'paho-mqtt',
+        'requests',
+        'selenium',
+        'tqdm',
         'wcwidth',
     ],
 )

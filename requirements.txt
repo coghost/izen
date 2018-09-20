@@ -1,9 +1,10 @@
 click
 clint
+hot-redis
 logzero
+paho-mqtt
 profig
 psutil
 pycrypto
-hot-redis
-paho-mqtt
+requests
 wcwidth

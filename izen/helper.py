@@ -21,6 +21,8 @@ import base64
 import getpass
 import pickle
 import random
+from urllib import parse
+import string
 
 app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(app_root)
@@ -33,6 +35,12 @@ from wcwidth import wcwidth
 from clint import textui
 import click
 from logzero import logger as log
+
+import numpy as np
+
+MAX_BLOCK_SEC = 0.1
+PRT_BLOCK_TIME = True
+NUM_LETTER_STR = string.ascii_letters + string.digits
 
 """ 交互选择功能 """
 
@@ -139,7 +147,7 @@ def num_choice(choices, default='1', valid_keys='', depth=1, icons='', sn_info=N
     )
 
     if str(c) in 'qQ':
-        os._exit(-1)
+        os._exit(0)
     if valid_keys == 'all':
         return c
     elif str(c) in 'bB':
@@ -689,7 +697,7 @@ def debug(users=None):
     return True if getpass.getuser() in users else False
 
 
-def get_addr(iface='lo0'):
+def get_addr(iface='lo0', iface_type='link'):
     """
         获取网络接口 ``iface`` 的 ``mac``
 
@@ -702,7 +710,12 @@ def get_addr(iface='lo0'):
     :rtype: str/None
     """
     if platform.system() in ['Darwin', 'Linux']:
-        _AF_FAMILY = psutil.AF_LINK
+        if iface_type == 'link':
+            _AF_FAMILY = psutil.AF_LINK
+        elif iface_type in ['inet', 'inet6']:
+            _AF_FAMILY = getattr(socket, 'AF_{}'.format(iface_type.upper()))
+        else:
+            raise SystemError('Not valid address FAMILY')
     else:
         raise SystemExit('Unsupported System. Only Mac/Linux Supported')
 
@@ -890,6 +903,21 @@ def do_post(url, payload, to=3, use_json=True):
         log.error('post to {} ({}) with err: {}'.format(url, payload, er))
         time.sleep(0.5)
     return {}
+
+
+def get_domain_home_from_url(url):
+    """ parse url for domain and homepage
+
+    :param url: the req url
+    :type url: str
+    :return: (homepage, domain)
+    :rtype:
+    """
+    p = parse.urlparse(url)
+    if p.netloc:
+        return '{}://{}'.format(p.scheme, p.netloc), p.netloc
+    else:
+        return '', ''
 
 
 """ 进制, str/bytes 转换 """
@@ -1141,3 +1169,63 @@ class TermTable(object):
         """Returns a pretty-printed string representation of the table."""
         self._create_table()
         return self.StrTable
+
+
+def rand_pareto_float(minimum, scale):
+    """ numpy-pareto_ 帕雷托最优随机
+
+    .. _numpy-pareto: https://docs.scipy.org/doc/numpy/reference/generated/numpy.random.pareto.html
+
+    :param minimum: 最小值
+    :param scale: 比例
+    :return:
+    """
+    return np.random.pareto(1.0) * scale + minimum
+
+
+def rand_block(minimum, scale, slow_mode=None):
+    """
+        block current thread at random pareto time ``minimum < block < 15`` and return the sleep time ``seconds``
+
+    :param minimum:
+    :type minimum:
+    :param scale:
+    :type scale:
+    :param slow_mode:
+    :type slow_mode:
+    :return:
+    """
+    if slow_mode:
+        t = min(rand_pareto_float(minimum, scale), slow_mode[1])
+        t = max(slow_mode[0], t)
+    else:
+        t = min(rand_pareto_float(minimum, scale), MAX_BLOCK_SEC)
+    time.sleep(t)
+    return t
+
+
+def random_sleep(minimum, scale):
+    """sleeps for a random amount of time,
+    with a min time of minimum seconds, and a long right tail.
+    Capped at 15 seconds
+    """
+    time.sleep(min(rand_float(minimum, scale), 15))
+
+
+def rand_float(minimum, scale):
+    return np.random.pareto(1) * scale + minimum
+
+
+def rand_str(max_len=6):
+    """ 生成 ``max_len`` 长度的字符串
+
+    - max_len < -len(NUM_LETTER_STR) will return blank str
+
+    :param max_len:
+    :type max_len:
+    :return:
+    :rtype:
+    """
+    v = [x for x in NUM_LETTER_STR]
+    np.random.shuffle(v)
+    return ''.join(v[:max_len])
