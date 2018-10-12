@@ -1191,8 +1191,8 @@ def rand_block(minimum, scale, slow_mode=None):
     :type minimum:
     :param scale:
     :type scale:
-    :param slow_mode:
-    :type slow_mode:
+    :param slow_mode: a tuple e.g.(2, 5)
+    :type slow_mode: tuple
     :return:
     """
     if slow_mode:

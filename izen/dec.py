@@ -486,9 +486,9 @@ def catch(do, my_exception=TypeError, hints='', do_raise=None):
             if do_raise:
                 raise do_raise(
                     hints or "{}({}):{}".format(
-                        fn.__code__.co_filename.split('/')[-1],
-                        fn.__code__.co_firstlineno,
-                        fn.__name__)
+                        do.__code__.co_filename.split('/')[-1],
+                        do.__code__.co_firstlineno,
+                        do.__name__)
                 )
 
     return wrapper

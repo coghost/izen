@@ -7,6 +7,7 @@ __description__ = '''
 
 import os
 import sys
+import time
 import random
 from copy import deepcopy
 
@@ -23,7 +24,20 @@ from izen import helper, dec, crawler
 from izen.helper import rand_pareto_float, rand_block
 from logzero import logger as log
 
-PIXELS_PER_DOWN_KEY = 81  # 9*9 => 1
+PIXELS_PER_DOWN_KEY = 51  # 9*9 => 1
+MAX_PAGE = 10
+
+
+class TooSlowScrollException(Exception):
+    pass
+
+
+class NebuError(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
 
 
 def gen_find_method(ele_type, multiple=True, extra_maps=None):
@@ -234,7 +248,8 @@ class Robot(object):
     def switch_to_default(self):
         self.driver.switch_to.default_content()
 
-    def mock_input(self, dat, term='', clear=True, mock_input_change='', submit=False):
+    def mock_input(self, dat, term='', clear=True,
+                   mock_input_change='', submit=False, multiple=0):
         """
             输入 term 到 input:ele(dat) 元素
             如果 ``mock_input_change`` 不为空, 则该 input 不能保留原始值, 可以输入一个值, 然后清空.
@@ -255,7 +270,10 @@ class Robot(object):
         :return:
         :rtype:
         """
-        target = self.get_elements(dat)
+        target = self.get_elements(dat, multiple)
+        if multiple:
+            target = target[multiple]
+
         if clear:
             target.clear()
             self._mock_input(target, Keys.BACKSPACE * 50)
@@ -326,38 +344,68 @@ class Robot(object):
             raise
 
     @dec.catch(True, WebDriverException, do_raise=Exception)
-    def scroll_to_element(self, dat, tow_paned_scroll='window', element=True, close_in=0):
+    def scroll_to_element(self, dat, two_paned_scroll='window',
+                          element=True, close_in=0, speed=1, check_time=True,
+                          total_down=0, ret=False):
         # scroll down to element
         target = self.get_elements(dat)
         # 已完成距离
-        distance_done = 0
+        distance_done = total_down
         # 待完成距离
 
         w_size = self.driver.get_window_size()
         # log.debug('y total need to go: {}'.format(target.location['y']))
-        # from center to element y
-        distance_togo = target.location['y'] - w_size['height'] // 2
-        # y // 3 防止滚动过多
+        # only let y visable!!!
+        distance_togo = target.location['y'] - w_size['height'] + 150
+        # distance_togo = target.location['y'] - 300
+        # y // <num> 防止滚动过多
         if not close_in:
             close_in = w_size['height'] // 3
 
+        starting_time = time.time()
+        distance = 0
         while distance_done < distance_togo:
+            if (time.time() - starting_time) > 150 and check_time:
+                raise TooSlowScrollException
             chance = random.random()
             if chance < 0.1:
                 # 在0.1 的概率下等待一定时间
                 mini_ = min(0.01 / chance, 0.5)
                 rand_block(mini_, 0.1)
             else:
-                # 多数情况下向下 scroll
-                y_neg, distance = False, rand_pareto_float(100, 10)
                 # 以很小的概率向上 scroll
                 if chance > 0.96:
                     y_neg, distance = True, -rand_pareto_float(100, 10)
+                else:
+                    # 多数情况下向下 scroll
+                    y_neg, distance = False, rand_pareto_float(100, 10) * speed
 
                 # log.debug('Each time: {}/{}/{}'.format(distance_togo, distance_done, distance))
+                # distance_togo + close_in
                 distance = min(distance_togo - distance_done + close_in, distance)
                 distance_done += distance
-                self.scroll_smooth(0, int(abs(distance)), False, y_neg, tow_paned_scroll, element)
+                self.scroll_smooth(0, int(abs(distance)), False, y_neg, two_paned_scroll, element)
+        else:
+            dist_ = (distance_done - distance_togo - w_size['height'] // 3) // 2
+            log.debug('done togo: {}-{}={}'.format(
+                int(distance_done), int(distance_togo), dist_))
+
+            if dist_ > 0:
+                log.debug('scroll back {} '.format(dist_))
+                self.scroll_smooth(0, int(abs(dist_)), False, True, two_paned_scroll, element)
+            rand_block(1, 1, (2, 3))
+
+        if ret:
+            return distance_togo
+
+    def scroll_to_top(self):
+        try:
+            _scroll = 'window.scrollTo(0,0);'
+            self.driver.execute_script(_scroll)
+            rand_block(0, 0.001)
+        except WebDriverException as e:
+            log.error(e.msg)
+            raise
 
 
 class ChromeRobot(Robot):
@@ -378,16 +426,9 @@ class ChromeRobot(Robot):
         prefs = {"profile.managed_default_content_settings.images": kwargs.get('images', 0)}
         options.add_experimental_option("prefs", prefs)
         driver = webdriver.Chrome(chrome_options=options)
-        driver.set_window_size(1366, 768)
+        driver.set_window_size(1366, 700)
         driver.set_window_position(32, 0)
         driver.set_page_load_timeout(kwargs.get('to', 30))
-        return driver
-
-    def chrome_driver_old(self, **kwargs):
-        options = webdriver.ChromeOptions()
-        prefs = {"profile.managed_default_content_settings.images": kwargs.get('images', 0)}
-        options.add_experimental_option("prefs", prefs)
-        driver = webdriver.Chrome(chrome_options=options)
         return driver
 
 
@@ -395,22 +436,110 @@ class ASite(object):
     """ The base of a site crawler """
 
     def __init__(self, driver, **kwargs):
+        """
+        self.base = {
+            'homepage': '',
+            'terms': [
+                {'class': '...'},
+                ...
+            ],
+            'next_page': {'class/id...': '...'},
+            'popovers': [...],
+        }
+        """
         # self.driver = driver
         self.robot = ChromeRobot(driver, **kwargs)
-        self.base = {}
+        self._is_base_correct()
+        # if 'homepage' not in self.base or 'next_page' not in self.base :
+        self.max_page_togo = kwargs.get('max_page', MAX_PAGE)
+        self.next_page_button_index = kwargs.get('next_page_button_index', -1)
+        self.next_page = None
+
+    def _is_base_correct(self):
+        if not hasattr(self, 'base'):
+            self.base = {}  # only used for remove the editor error hint!!!
+            raise NebuError('base is Required')
+        _required = ['homepage', 'terms']
+        _dict = ['next_page', 'submit_button']
+        _lst = ['terms', 'popovers']
+
+        for k in _required:
+            if k not in self.base:
+                raise NebuError('{} is required by base'.format(k))
+
+        for k in _dict:
+            if k in self.base and not isinstance(self.base.get(k), dict):
+                raise NebuError('{} should be a dict'.format(k))
+
+        for k in _lst:
+            if k in self.base and not isinstance(self.base.get(k), list):
+                raise NebuError('{} should be a list'.format(k))
+
+    def __has_next_page(self, current_page_num=0):
+        """ this is an example for debug purpose only...
+        """
+        try:
+            next_page = self.robot.get_elements(
+                self.base.get('next_page'),
+                multiple=True
+            )
+            log.debug('<Site> has {} next page elems'.format(len(next_page)))
+            if not next_page:
+                return False
+            for i, ele in enumerate(next_page):
+                if ele.get_attribute('innerText') == 'Next':
+                    log.debug('<Site> {} is the right link'.format(i))
+                    self.next_page = ele
+                    break
+            return True
+        except Exception as _:
+            self.next_page = None
+            return False
 
     def has_next_page(self, current_page_num=0):
-        np = len(self.robot.get_elements(self.base.get('next_page'), multiple=True))
-        return np >= 1
+        try:
+            self.next_page = self.robot.get_elements(
+                self.base.get('next_page'),
+                multiple=True
+            )
+            if self.next_page:
+                if len(self.next_page) > 1:
+                    log.debug('Has {} next page link'.format(len(self.next_page)))
+                self.next_page = self.next_page[self.next_page_button_index]
+                return True
+            else:
+                return False
+        except Exception as _:
+            self.next_page = None
+            return False
 
-    # @dec.catch(True, IndexError)
-    def goto_next(self):
-        next_page = self.robot.get_elements(self.base['next_page'], multiple=True)[-1]
-        self.robot.scroll_to_element(next_page)
-        self.robot.mock_click_next_page(next_page)
+    def pre_goto_next(self):
+        """ operations should be done before goto next.
+        """
+        pass
+
+    def wait_page_load(self):
+        st = time.time()
+        rand_block(1, 0.5, (2, 10))
+        log.debug('{} takes {}s for next page {}'.format('>' * 16, int(time.time() - st), '<' * 16))
+
+    def goto_next(self, yval=0):
+        self.pre_goto_next()
+        # if can goes here, self.next page shoud not be none!!!
+        assert self.next_page is not None
+        self.robot.scroll_to_element(self.next_page)
+        rand_block(1, 0.5, (3, 5))
+        self.robot.mock_click_next_page(self.next_page)
+        self.wait_page_load()
+        return yval
+
+    def block_for_debug(self):
+        log.debug('{0} Block From Here {0}'.format('='*32))
+        while True:
+            time.sleep(1)
 
     def mock_popovers(self):
-        for d in self.base['popovers']:
+        for d in self.base.get('popovers', []):
             if self.robot.has_element(d, skip_log=True):
                 rand_block(1, 1, slow_mode=(2, 5))
                 self.robot.mock_click(d)
@@ -425,19 +554,51 @@ class ASite(object):
         if not isinstance(terms, list):
             terms = [terms]
         if len(terms) != len(self.base['terms']):
-            raise crawler.CrawlerParamsError('args length must match base[terms]')
+            # raise crawler.CrawlerParamsError('args length must match base[terms]')
+            log.debug('args length {} != {} must match base[terms]'.format(len(terms), len(self.base['terms'])))
+
+    def force_window_topper(self):
+        current_window = self.robot.driver.current_window_handle
+        for window in self.robot.driver.window_handles:
+            if window != current_window:
+                self.robot.driver.switch_to_window(window)
+                self.robot.driver.close()
+        self.robot.driver.switch_to_window(current_window)
 
     def mock_input_submit(self, *args, **kwargs):
         """ 模拟输入参数, 然后提交 """
-        if not kwargs.get('skip_load'):
-            self.robot.load_page(self.base['homepage'])
+        self.robot.load_page(self.base['homepage'])
+        if kwargs.get('force_window_topper'):
+            self.force_window_topper()
 
+        if self.base.get('popovers'):
+            self.mock_popovers()
+
+        if self.base.get('activate_input'):
+            self.robot.mock_click(self.base['activate_input'])
+
+        # 使用了 for else tricks,
+        # 正常循环执行条件到 倒数第一个元素,
+        # 然后最后一个元素在 else 中触发
         terms = kwargs.get('terms')
-        for i, q in enumerate(self.base['terms']):
-            if i < len(self.base['terms']) - 1:
-                self.robot.mock_input(q, terms[i], clear=True)
-            else:
-                self.robot.mock_input(q, terms[i], clear=True, submit=True)
+        # 如果 terms 结果可能出现 多个, 则需要在此设定需要选择的元素 `index`
+        multiple = [0 for _ in terms]
+        for i, k in enumerate(kwargs.get('multiple', [])):
+            multiple[i] = k
+
+        for i, q in enumerate(self.base['terms'][:-1]):
+            self.robot.mock_input(q, terms[i], clear=True, multiple=multiple[i])
+        else:
+            _submit = False if self.base.get('submit_button') else True
+            log.debug('Do submit By last input {}'.format(_submit))
+            # if do not force length match of base['terms'] and terms, last_idx required.
+            last_idx = len(self.base['terms']) - 1
+            self.robot.mock_input(self.base['terms'][last_idx], terms[last_idx], clear=True,
+                                  submit=_submit, multiple=multiple[-1])
+
+        if self.base.get('submit_button'):
+            log.debug('do submit by button click')
+            self.robot.mock_click(self.base['submit_button'])
 
     def mock_human_crawl(self, *args, **kwargs):
         """ 模拟 human 操作方式爬取站点 """
@@ -446,22 +607,42 @@ class ASite(object):
         return self.response_result(**kwargs)
 
     def response_result(self, **kwargs):
-        # yield self.driver.page_source, self.driver.current_url, 1
-        # after mock submit, the first page is crawled.
-        # so start@ index of 1, and yield first
-        # when running over, use else to yield the last page.
-        page_togo = kwargs.get('page_togo', 20)
+        """ default will fetch MAX_AP pages
+        yield `self.driver.page_source, self.driver.current_url, 1`
+
+        after mock submit, the first page is crawled.
+        so start@ index of 1, and yield first page first
+        when running over, use else to yield the last page.
+
+        程序运行到此, 已经load 了第一页, 故在进行操作 `点击下一页` 之前, 需要 yield
+        range(1, page_togo), 则在 page_togo - 1时跳出循环,
+        此时程序 已经完成点击了下一页, 故 page_togo 这一页已经 load 完成, 故在 else 跳出时 yield
+        """
+        page_togo = kwargs.get('page_togo', self.max_page_togo)
+        if page_togo <= 1:
+            return self.robot.driver.page_source, self.robot.driver.current_url, 1
+
+        # 从 `1` 开始是由于已经加载了第一页
+        # 到 `page_togo` 结束, 是因为在 `page_togo -1` 时,已经点击了下一页
+        # 因此此处不能写为 range(0, page_togo), 或者(1, page_togo + 1)
+        yield_last = kwargs.get('yield_last', False)
+        start_yval = 0
         for page_done in range(1, page_togo):
-            yield self.robot.driver.page_source, self.robot.driver.current_url, page_done
+            # log.debug(self.robot.driver.current_url)
+            if not yield_last:
+                yield self.robot.driver.page_source, self.robot.driver.current_url, page_done
             # click any popups
             self.mock_popovers()
 
             if self.has_next_page(page_done):
-                self.goto_next()
+                start_yval = self.goto_next(start_yval)
             else:
                 # 如果无下一页, 直接退出
                 log.debug('page {} is the last result page!'.format(page_done))
                 break
         else:
-            log.debug('all done {}'.format(page_done))
+            if not yield_last:
+                yield self.robot.driver.page_source, self.robot.driver.current_url, page_togo
+
+        if yield_last:
             yield self.robot.driver.page_source, self.robot.driver.current_url, page_togo
