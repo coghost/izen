@@ -474,7 +474,7 @@ def write_file(dat, pth, append=False):
     return err
 
 
-def read_file(pth):
+def read_file(pth, use_str=False):
     """
         读取文件, 并返回内容,
         如果读取失败,返回None
@@ -488,6 +488,9 @@ def read_file(pth):
     try:
         with open(u'' + pth, 'rb') as fp:
             cont = fp.read()
+
+        if use_str:
+            cont = to_str(cont)
     except Exception as err:
         print(err)
     return cont

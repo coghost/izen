@@ -75,7 +75,7 @@ class Chaos(object):
         p = self.encrypt(sec_key) if encrypt_sec_key else sec_key
         key, iv = p[:self.bs], p[16:]
 
-        return AES.new(key, self.aes_mode, iv)
+        return AES.new(helper.to_bytes(key), self.aes_mode, helper.to_bytes(iv))
 
     def aes_encrypt(self, plain, sec_key, enable_b64=True):
         """

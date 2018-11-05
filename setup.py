@@ -15,7 +15,7 @@ __description__ = '''
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1.20180404'
+VERSION = '0.1.20181001'
 
 setup(
     name='izen',
@@ -29,25 +29,21 @@ setup(
     description='encapsulation of some useful features',
     long_description=open('README.md').read(),
     license='GPL',
-    classifiers=[
-        "Programming Language :: Python3.5",
-        "Programming Language :: Python3.6",
-        "License :: OSI Approved :: BSD License"
-    ],
     install_requires=[
         'bs4',
         'click',
         'clint',
-        'hot',
+        'hot_redis',
         'logzero',
         'numpy',
         'paho-mqtt',
         'profig',
         'psutil',
-        'pycrypto',
+        'pycryptodome',
         'requests',
         'selenium',
         'tqdm',
         'wcwidth',
     ],
+    keywords=['izen', 'tool']
 )

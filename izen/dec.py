@@ -413,7 +413,7 @@ def block_until_expired(timeout):
         return dec
 
 
-def catch(do, my_exception=TypeError, hints='', do_raise=None):
+def catch(do, my_exception=TypeError, hints='', do_raise=None, prt_tb=True):
     """
     防止程序出现 exception后异常退出,
     但是这里的异常捕获机制仅仅是为了防止程序退出, 无法做相应处理
@@ -455,7 +455,8 @@ def catch(do, my_exception=TypeError, hints='', do_raise=None):
                         fn.__code__.co_filename.split('/')[-1],
                         fn.__code__.co_firstlineno,
                         fn.__name__, e))
-                    traceback.print_exc()
+                    if prt_tb:
+                        traceback.print_exc()
                     if hints:
                         print(hints)
                     if do_raise:
@@ -480,7 +481,8 @@ def catch(do, my_exception=TypeError, hints='', do_raise=None):
                 do.__code__.co_firstlineno,
                 do.__name__, e
             ))
-            traceback.print_exc()
+            if prt_tb:
+                traceback.print_exc()
             if hints:
                 print(hints)
             if do_raise:
