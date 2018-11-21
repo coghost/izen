@@ -15,6 +15,7 @@ import logging
 
 import profig
 import logzero
+import psutil
 
 app_root = '/'.join(os.path.abspath(__file__).split('/')[:-2])
 sys.path.append(app_root)
@@ -49,6 +50,13 @@ class Conf(object):
         :param enable_default_log: ``是否启用默认log配置参数``
         :type enable_default_log: bool
         """
+        try:
+            self._pth, t = os.path.split(pth)
+            self._cfg_name = t.split('.')[0]
+        except Exception as _:
+            self._pth = '/tmp'
+            self._cfg_name = 'izen'
+
         self.cfg = profig.Config(pth, encoding='utf-8')
 
         # 读取配置
@@ -65,7 +73,8 @@ class Conf(object):
         # 在配置不存在时, 需要首先在初始化在内存中, 然后再同步到本地并退出执行程序
         if not os.path.exists(os.path.expanduser(pth)):
             self.cfg.sync()
-            raise SystemExit('[init-cfg-file]: {}'.format(os.path.expanduser(pth)))
+            print('[init-cfg-file]: {}'.format(os.path.expanduser(pth)))
+            # raise SystemExit('[init-cfg-file]: {}'.format(os.path.expanduser(pth)))
 
     def __spawn(self):
         """通过手动方式, 指定字段类型与默认值,
@@ -74,7 +83,7 @@ class Conf(object):
         """
         dat = {
             'log.enabled': False,
-            'log.file_pth': '/tmp/izen.log',
+            'log.file_pth': '{}/{}.log'.format(self._pth, self._cfg_name),
             'log.file_backups': 3,
             'log.file_size': 5,
             'log.level': 10,
@@ -117,12 +126,13 @@ class LFormatter(logzero.LogFormatter):
         logging.CRITICAL: logzero.ForegroundColors.MAGENTA,
     }
 
-    def __init__(self, log_pre='♨✔⊙✘◈'):
+    def __init__(self, log_pre='♨✔⊙✘◈', date_fmt=None):
+        date_fmt = date_fmt or self.DEFAULT_DATE_FORMAT
         logzero.LogFormatter.__init__(self,
-                                      datefmt=self.DEFAULT_DATE_FORMAT,
+                                      datefmt=date_fmt,
                                       colors=self.DEFAULT_COLORS
                                       )
-        blank__ = '➵' * 5
+        blank__ = u'' * 5 if psutil.MACOS else u'' if psutil.LINUX else ''
         log_pre += blank__[len(log_pre):]  # 如果无, 或者长度小于5, 则使用 blank_ 自动补全5个字符
         self.CHAR_PRE = dict(zip(range(5), log_pre))
 

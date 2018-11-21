@@ -38,9 +38,45 @@ from logzero import logger as log
 
 import numpy as np
 
-MAX_BLOCK_SEC = 0.1
+MAX_BLOCK_SEC = 5
 PRT_BLOCK_TIME = True
 NUM_LETTER_STR = string.ascii_letters + string.digits
+
+"""color"""
+
+R = '\x1b[0;91m{}\x1b[0m'  # red
+G = '\x1b[0;92m{}\x1b[0m'  # green
+Y = '\x1b[0;93m{}\x1b[0m'  # yellow
+B = '\x1b[0;94m{}\x1b[0m'  # blue
+F = '\x1b[0;95m{}\x1b[0m'  # fuchsia
+C = '\x1b[0;96m{}\x1b[0m'  # cyan
+W = '\x1b[0;97m{}\x1b[0m'  # white
+
+
+class LogToNull(object):
+    """an replacement of `logzero` on prod env
+    in local env, do colorful log,
+    in prod env, log nothing.
+    """
+
+    def info(self, *args, **kwargs):
+        pass
+
+    def warning(self, *args, **kwargs):
+        pass
+
+    def debug(self, *args, **kwargs):
+        pass
+
+    def error(self, *args, **kwargs):
+        pass
+
+    def exception(self, *args, **kwargs):
+        pass
+
+    def fatal(self, *args, **kwargs):
+        pass
+
 
 """ 交互选择功能 """
 
@@ -1186,7 +1222,7 @@ def rand_pareto_float(minimum, scale):
     return np.random.pareto(1.0) * scale + minimum
 
 
-def rand_block(minimum, scale, slow_mode=None):
+def rand_block(minimum, scale, maximum=1):
     """
         block current thread at random pareto time ``minimum < block < 15`` and return the sleep time ``seconds``
 
@@ -1198,11 +1234,7 @@ def rand_block(minimum, scale, slow_mode=None):
     :type slow_mode: tuple
     :return:
     """
-    if slow_mode:
-        t = min(rand_pareto_float(minimum, scale), slow_mode[1])
-        t = max(slow_mode[0], t)
-    else:
-        t = min(rand_pareto_float(minimum, scale), MAX_BLOCK_SEC)
+    t = min(rand_pareto_float(minimum, scale), maximum)
     time.sleep(t)
     return t
 

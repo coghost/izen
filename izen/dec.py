@@ -77,40 +77,40 @@ class Singleton(type):
         return Singleton._instance[cls]
 
 
-def retry(tries, delay=3, backoff=2):
-    '''Retries a function or method until it returns True.
+def retry(tries, delay=0, back_off=1, raise_msg=''):
+    """Retries a function or method until it got True.
 
-    delay sets the initial delay in seconds, and backoff sets the factor by which
-    the delay should lengthen after each failure. backoff must be greater than 1,
-    or else it isn't really a backoff. tries must be at least 0, and delay
-    greater than 0.'''
+    - ``delay`` sets the initial delay in seconds
+    - ``back_off`` sets the factor by which
+    - ``raise_msg`` if not '', it'll raise an Exception
+    """
 
-    if backoff <= 1:
-        raise ValueError("backoff must be greater than 1")
+    if back_off < 1:
+        raise ValueError('back_off must be 1 or greater')
 
     tries = math.floor(tries)
     if tries < 0:
-        raise ValueError("tries must be 0 or greater")
+        raise ValueError('tries must be 0 or greater')
 
-    if delay <= 0:
-        raise ValueError("delay must be greater than 0")
+    if delay < 0:
+        raise ValueError('delay must be 0 or greater')
 
     def deco_retry(f):
         def f_retry(*args, **kwargs):
-            mtries, mdelay = tries, delay  # make mutable
+            max_tries, max_delay = tries, delay  # make mutable
 
-            rv = f(*args, **kwargs)  # first attempt
-            while mtries > 0:
-                if rv is True:  # Done on success
-                    return True
+            while max_tries > 0:
+                rv = f(*args, **kwargs)  # first attempt
+                if rv:  # Done on success
+                    return rv
 
-                mtries -= 1  # consume an attempt
-                time.sleep(mdelay)  # wait...
-                mdelay *= backoff  # make future wait longer
-
-                rv = f(*args, **kwargs)  # Try again
-
-            return False  # Ran out of tries :-(
+                max_tries -= 1  # consume an attempt
+                time.sleep(max_delay)  # wait...
+                max_delay *= back_off  # make future wait longer
+            else:
+                if raise_msg:
+                    raise Exception(raise_msg)
+                return
 
         return f_retry  # true decorator -> decorated function
 

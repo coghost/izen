@@ -312,7 +312,7 @@ class Robot(object):
                 distance = rand_pareto_float(100, 10)
                 if chance >= 0.95:
                     distance = -distance
-                key_press_times_ = distance // PIXELS_PER_DOWN_KEY
+                key_press_times_ = int(distance // PIXELS_PER_DOWN_KEY)
                 self.mock_key_down(target, key_press_times_)
                 distance_done += key_press_times_ * PIXELS_PER_DOWN_KEY
         except Exception as _:
@@ -459,7 +459,7 @@ class ASite(object):
         if not hasattr(self, 'base'):
             self.base = {}  # only used for remove the editor error hint!!!
             raise NebuError('base is Required')
-        _required = ['homepage', 'terms']
+        _required = ['homepage']
         _dict = ['next_page', 'submit_button']
         _lst = ['terms', 'popovers']
 

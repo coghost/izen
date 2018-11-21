@@ -336,11 +336,50 @@ class CommonCrawler(Crawler):
             log.debug('[{}:{:>8}] get {}'.format('Cache' if hit else 'Net', len(raw), url))
         return raw
 
-    def bs4get(self, url, use_cache=True):
-        raw = self.load(url, use_cache)
+    def bs4get(self, url, use_cache=True, show_log=False, is_json=False):
+        raw = self.load(url, use_cache, show_log)
         if not raw:
             return
+        if is_json:
+            return json.loads(helper.to_str(raw))
         return BS(raw, self.bs['parser'], from_encoding=self.bs['encoding'])
+
+    def do_sess_post(self, url, data, headers=None, ret='json'):
+        res = self.sess.post(url, data=data, headers=headers or self.headers['post'], timeout=self.timeout)
+        if res.status_code == 200:
+            if ret == 'json':
+                return res.json()
+            return res.content
+
+    def load_post(self, url, data, headers=None, ret='json', use_cache=True, show_log=False):
+        _name = self.map_url_to_cache_id(url)
+        raw = ''
+        hit = False
+
+        if use_cache:
+            hit = True
+            raw = self.load_from_cache(_name)
+
+        if not raw:
+            if show_log:
+                log.debug('from cache got nothing {}'.format(_name))
+            raw = self.do_sess_post(url, data, headers, ret)
+            if raw:
+                helper.write_file(raw, _name)
+
+        if show_log:
+            log.debug('[{}:{:>8}] post {}'.format('Cache' if hit else 'Net', len(raw), url))
+        return raw
+
+    def bs4post(self, url, data, headers=None, ret='json', use_cache=True, show_log=False):
+        raw = self.load_post(url,
+                             data=data,
+                             ret=ret,
+                             use_cache=use_cache, headers=headers,
+                             show_log=show_log)
+        if not raw:
+            return
+        return raw
 
     def sync_save(self, res, overwrite=False):
         """ save ``res`` to local synchronized

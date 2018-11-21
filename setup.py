@@ -15,7 +15,7 @@ __description__ = '''
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1.20181001'
+VERSION = '0.1.20181102'
 
 setup(
     name='izen',
