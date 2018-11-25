@@ -25,10 +25,8 @@ import asyncio
 import requests
 from bs4 import BeautifulSoup as BS
 from izen import helper, dec
-
 import logzero
-# from itool import log, cfg
-from logzero import logger as log
+from logzero import logger as zlog
 
 
 class CrawlerError(Exception):
@@ -71,6 +69,60 @@ class UA:
     windows_ie__: str = 'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)'
     windows_phone__: str = 'Mozilla/5.0 (compatible; MSIE 9.0; Windows Phone OS 7.5; Trident/5.0; IEMobile/9.0; SAMSUNG; SGH-i917)'
     windows_rt__: str = 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; ARM; Trident/6.0)'
+
+
+class ParseHeaderFromFile(object):
+    def __init__(self, fpth='headers.txt', use_cookies=True):
+        self.fpth = fpth
+        self.url = ''
+        self.cookies = {}
+        self.headers = {}
+        self.parse_charles(use_cookies)
+
+    def parse_charles(self, use_cookies):
+        """
+        analy plain info from charles packet
+
+        :return: (url, dat)
+        :rtype:
+        """
+        packet = helper.to_str(helper.read_file(self.fpth))
+        dat = {}
+
+        pks = [x for x in packet.split('\n') if x.replace(' ', '')]
+        url = pks[0].split(' ')[1]
+
+        for i, cnt in enumerate(pks[1:]):
+            arr = cnt.split(':')
+            if len(arr) < 2:
+                continue
+            arr = [x.replace(' ', '') for x in arr]
+            _k, v = arr[0], ':'.join(arr[1:])
+            dat[_k] = v
+
+        if use_cookies:
+            try:
+                self.fmt_cookies(dat.pop('Cookie'))
+            except:
+                pass
+        self.headers = dat
+        self.url = 'https://{}{}'.format(self.headers.get('Host'), url)
+        # return url, dat
+
+    def fmt_cookies(self, ck):
+        """
+        :param ck:
+        :type ck:
+        :return:
+        :rtype:
+        """
+        cks = {}
+        for c in ck.split(';'):
+            a = c.split('=')
+            if len(a) != 2:
+                continue
+            cks[a[0].replace(' ', '')] = a[1].replace(' ', '')
+        self.cookies = cks
 
 
 class Crawler(object):
@@ -151,11 +203,11 @@ class Crawler(object):
         name = os.path.join(self.cache['site_raw'], 'homepage')
         # not force spawn and file ok
         if not force_spawn and helper.is_file_ok(name):
-            log.debug('{} exist!'.format(name))
+            # zlog.debug('{} exist!'.format(name))
             self.sess.cookies = self.load_cookies(ck_pth)
             return True
         else:
-            log.debug('{} not exist!'.format(name))
+            zlog.debug('{} not exist!'.format(name))
 
         res = self.sess.get(url, headers=self.__header__)
         if res.status_code != 200:
@@ -302,7 +354,7 @@ class CommonCrawler(Crawler):
             if res.status_code == 200:
                 return res.content
         except (requests.ReadTimeout, requests.ConnectTimeout, requests.ConnectionError) as _:
-            log.error('failed of: {} with error: {}'.format(url, _))
+            zlog.error('failed of: {} with error: {}'.format(url, _))
 
     def load(self, url, use_cache=True, show_log=False):
         """fetch the url ``raw info``, use cache first, if no cache hit, try get from Internet
@@ -311,6 +363,8 @@ class CommonCrawler(Crawler):
         :type url:
         :param use_cache:
         :type use_cache:
+        :param show_log:
+        :type show_log:
         :return: the ``raw info`` of the url
         :rtype: ``str``
         """
@@ -324,7 +378,7 @@ class CommonCrawler(Crawler):
 
         if not raw:
             if show_log:
-                log.debug('from cache got nothing {}'.format(_name))
+                zlog.debug('from cache got nothing {}'.format(_name))
             raw = self.do_sess_get(url)
             if raw:
                 helper.write_file(raw, _name)
@@ -333,7 +387,7 @@ class CommonCrawler(Crawler):
         #     hit = True
         #     raw = self.load_from_cache(_name)
         if show_log:
-            log.debug('[{}:{:>8}] get {}'.format('Cache' if hit else 'Net', len(raw), url))
+            zlog.debug('[{}:{:>8}] get {}'.format('Cache' if hit else 'Net', len(raw), url))
         return raw
 
     def bs4get(self, url, use_cache=True, show_log=False, is_json=False):
@@ -352,34 +406,41 @@ class CommonCrawler(Crawler):
             return res.content
 
     def load_post(self, url, data, headers=None, ret='json', use_cache=True, show_log=False):
-        _name = self.map_url_to_cache_id(url)
+        name = self.map_url_to_cache_id(url)
+        if data:
+            keys = sorted(data.keys())
+            for k in keys:
+                name += '{}{}'.format(k, data[k])
+
         raw = ''
         hit = False
 
         if use_cache:
             hit = True
-            raw = self.load_from_cache(_name)
+            raw = self.load_from_cache(name)
 
         if not raw:
             if show_log:
-                log.debug('from cache got nothing {}'.format(_name))
+                zlog.debug('cache miss: ({})'.format(name))
             raw = self.do_sess_post(url, data, headers, ret)
             if raw:
-                helper.write_file(raw, _name)
+                if ret == 'json':
+                    raw = json.dumps(raw)
+                zlog.debug('write ({}) to {}'.format(len(raw), name))
+                helper.write_file(raw, name)
 
         if show_log:
-            log.debug('[{}:{:>8}] post {}'.format('Cache' if hit else 'Net', len(raw), url))
+            zlog.debug('[cache {}:{:>8}] post {}'.format('hit' if hit else 'miss', len(raw), name))
         return raw
 
     def bs4post(self, url, data, headers=None, ret='json', use_cache=True, show_log=False):
-        raw = self.load_post(url,
-                             data=data,
-                             ret=ret,
+        raw = self.load_post(url, data=data, ret=ret,
                              use_cache=use_cache, headers=headers,
                              show_log=show_log)
-        if not raw:
-            return
-        return raw
+        if ret == 'json':
+            return json.loads(raw)
+        else:
+            return raw
 
     def sync_save(self, res, overwrite=False):
         """ save ``res`` to local synchronized
@@ -410,7 +471,7 @@ class CommonCrawler(Crawler):
 
         with open(file_name, 'wb') as f:
             f.write(cnt)
-        log.debug('Sync Done {}'.format(res.get('name')))
+        zlog.debug('Sync Done {}'.format(res.get('name')))
         return True
 
 
@@ -497,7 +558,7 @@ class AsyncCrawler(CommonCrawler):
             os.chdir(preset_pth or self.cache['site_media'])
             tasks = self.gen_tasks(urls)
         except CrawlerParamsError as _:
-            log.error(_)
+            zlog.error(_)
             os.chdir(_cwd)
             return
 
