@@ -19,6 +19,7 @@ import psutil
 
 app_root = '/'.join(os.path.abspath(__file__).split('/')[:-2])
 sys.path.append(app_root)
+from izen import helper
 
 
 class Conf(object):
@@ -51,6 +52,8 @@ class Conf(object):
         :type enable_default_log: bool
         """
         try:
+            if not helper.is_file_ok(pth):
+                helper.write_file('', pth)
             self._pth, t = os.path.split(pth)
             self._cfg_name = t.split('.')[0]
         except Exception as _:
@@ -70,10 +73,10 @@ class Conf(object):
         if dat:
             self.__do_init(dat)
 
-        # 在配置不存在时, 需要首先在初始化在内存中, 然后再同步到本地并退出执行程序
+        # 在配置不存在时, 需要首先初始化在内存中, 然后再同步到本地并退出执行程序
         if not os.path.exists(os.path.expanduser(pth)):
             self.cfg.sync()
-            print('[init-cfg-file]: {}'.format(os.path.expanduser(pth)))
+            # print('[init-cfg-file]: {}'.format(os.path.expanduser(pth)))
             # raise SystemExit('[init-cfg-file]: {}'.format(os.path.expanduser(pth)))
 
     def __spawn(self):

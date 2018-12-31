@@ -46,7 +46,7 @@ class Prettify(object):
             num = round(num, precision)
 
         try:
-            cfg_rgb = self.cfg.get('cc.log_rgb', '5,20,30')
+            cfg_rgb = self.cfg.get('pretty.rgb', '5,20,30')
             rgb = [int(x) for x in cfg_rgb.split(',')]
         except Exception:
             rgb = [5, 20, 30]
@@ -79,7 +79,7 @@ class Prettify(object):
 
         _symbols = ['' for _ in keys]
         # symbols only available in my computer
-        txt = self.cfg.get('cc.symbols', '')
+        txt = self.cfg.get('pretty.symbols', '')
         if txt:
             sym = txt.split('\n')[0].split(',')
             _symbols = sym + _symbols[len(sym):]

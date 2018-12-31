@@ -72,21 +72,24 @@ class UA:
 
 
 class ParseHeaderFromFile(object):
-    def __init__(self, fpth='headers.txt', use_cookies=True):
+    def __init__(self, fpth='headers.txt', raw='', use_cookies=True):
         self.fpth = fpth
         self.url = ''
         self.cookies = {}
         self.headers = {}
-        self.parse_charles(use_cookies)
+        self.parse_headers(use_cookies, raw)
 
-    def parse_charles(self, use_cookies):
+    def parse_headers(self, use_cookies, raw):
         """
-        analy plain info from charles packet
+        analyze headers from file or raw messages
 
         :return: (url, dat)
         :rtype:
         """
-        packet = helper.to_str(helper.read_file(self.fpth))
+        if not raw:
+            packet = helper.to_str(helper.read_file(self.fpth))
+        else:
+            packet = raw
         dat = {}
 
         pks = [x for x in packet.split('\n') if x.replace(' ', '')]
@@ -107,7 +110,7 @@ class ParseHeaderFromFile(object):
                 pass
         self.headers = dat
         self.url = 'https://{}{}'.format(self.headers.get('Host'), url)
-        # return url, dat
+        return url, dat
 
     def fmt_cookies(self, ck):
         """

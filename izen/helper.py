@@ -54,6 +54,7 @@ W = '\x1b[0;97m{}\x1b[0m'  # white
 
 ICONS = [F.format(x) + ' ' for x in '❶❷❸❹❺❻❼❽❾❿']
 
+
 class LogToNull(object):
     """an replacement of `logzero` on prod env
     in local env, do colorful log,
@@ -644,6 +645,23 @@ def pickle_f2m(pth, rt=None):
     except Exception as err:
         sys.stderr.write('pickle_f2m(pth={}) with error: {}\n'.format(pth, err))
     return r
+
+
+def md_rst_convert(src_file, to='rst'):
+    tpl = ['markdown', 'rst']
+    if to == 'markdown':
+        tpl = tpl[::-1]
+
+    res = requests.post(
+        url='http://c.docverter.com/convert',
+        data={
+            'from': tpl[0],
+            'to': tpl[1],
+        },
+        files={'input_files[]': open(src_file, 'rb')}
+    )
+    if res.ok:
+        return res.content
 
 
 """ 数据校验 """

@@ -15,7 +15,7 @@ __description__ = '''
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1.20181103'
+VERSION = '0.2.1'
 
 setup(
     name='izen',
@@ -28,6 +28,7 @@ setup(
     url='https://github.com/coghost/izen',
     description='encapsulation of some useful features',
     long_description=open('README.md').read(),
+    long_description_content_type="text/markdown",
     license='GPL',
     install_requires=[
         'bs4',
