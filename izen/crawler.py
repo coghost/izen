@@ -261,6 +261,11 @@ class Crawler(object):
         cookies = requests.utils.cookiejar_from_dict(_cookies)
         return cookies
 
+    def refresh_cookies(self):
+        ck_pth = os.path.join(self.cache['site_dir'], 'cookie.txt')
+        self.dump_cookies(self.sess.cookies, ck_pth)
+        self.load_cookies(ck_pth)
+
     def map_url_to_cache_id(self, url):
         """use of the url resource location as cached id
 
@@ -433,7 +438,7 @@ class CommonCrawler(Crawler):
                 helper.write_file(raw, name)
 
         if show_log:
-            zlog.debug('[cache {}:{:>8}] post {}'.format('hit' if hit else 'miss', len(raw), name))
+            zlog.debug('[cache {}:{:>8}] post {}'.format('hit' if hit else 'miss', len(raw or ''), name))
         return raw
 
     def bs4post(self, url, data, headers=None, ret='json', use_cache=True, show_log=False):
